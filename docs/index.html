@@ -332,7 +332,7 @@
       const message = error && error.message ? String(error.message) : "";
 
       if (name === "OperationError" || name === "InvalidAccessError" || name === "DOMException") {
-        return "解密失败：UUID 不正确，或 payload 已损坏。请核对部署时使用的 UUID，并重新从 Actions 日志复制完整链接。";
+        return "解密失败：UUID 不正确，或 payload 已损坏。";
       }
       if (message) {
         return message.startsWith("解密失败") ? message : "解密失败：" + message;
