@@ -10,7 +10,7 @@
 
 2. 获取 API Token（用于 CLI 登录）
 
-   登录后点击左边菜单 Organization，点击 API Keys，可以查看当前用户的 API TOKEN。
+   登录后点击 **左边菜单 Organization → API Keys**，可以查看当前用户的 API TOKEN。
 
 ### 2. 准备 UUID
 
@@ -60,11 +60,11 @@
 
 ## 解密订阅
 
-1. 打开 Actions 构建完成后的 **Summary** 页面，查看加密的订阅信息，格式如下，直接点击链接打开
+1. Actions 构建完成后，打开 **Summary** 页面，查看加密的订阅信息，格式如下：
 
    `https://vevc.github.io/unikraft-deploy/?payload=...`
 
-2. 页面会自动填入加密 Payload
+2. 直接点击链接打开，页面会自动填入加密 Payload
 3. 在「解密密钥」输入框填入你配置的 `UUID`
 4. 点击 **解密订阅**，得到明文订阅信息
 
