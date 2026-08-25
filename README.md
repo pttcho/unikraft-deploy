@@ -1,6 +1,6 @@
 # unikraft-deploy
 
-在 [Unikraft Cloud](https://unikraft.cloud) 上部署 sing-box 代理服务。
+在 [Unikraft Cloud](https://unikraft.cloud) 上部署 VLESS over WebSocket 代理服务。
 
 ## 准备工作
 
