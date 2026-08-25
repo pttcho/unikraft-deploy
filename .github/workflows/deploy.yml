@@ -1,4 +1,4 @@
-name: Deploy to Unikraft
+name: Create Unikraft Instance
 
 on:
   workflow_dispatch:

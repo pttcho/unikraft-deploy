@@ -1,4 +1,4 @@
-name: Delete Unikraft Instance
+name: Delete Unikraft instance
 
 on:
   workflow_dispatch:
