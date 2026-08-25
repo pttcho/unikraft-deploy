@@ -1,0 +1,111 @@
+name: Deploy to Unikraft
+
+on:
+  workflow_dispatch:
+    inputs:
+      metro:
+        description: 部署地区
+        required: true
+        type: choice
+        default: sin - 新加坡 (Singapore)
+        options:
+          - dal - 达拉斯 (Dallas, US)
+          - fra - 法兰克福 (Frankfurt, DE)
+          - sfo - 旧金山 (San Francisco, US)
+          - sin - 新加坡 (Singapore)
+          - was - 华盛顿 (Washington DC, US)
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Unikraft CLI
+        uses: unikraft/setup-action@v1
+        with:
+          version: latest
+
+      - name: Login to Unikraft Cloud
+        env:
+          UNIKRAFT_TOKEN: ${{ secrets.UNIKRAFT_TOKEN }}
+        run: echo "$UNIKRAFT_TOKEN" | unikraft login --token -
+
+      - name: Resolve organization name
+        id: org
+        run: |
+          chmod +x scripts/get-org-name.sh
+          ORG="$(./scripts/get-org-name.sh)"
+          echo "name=${ORG}" >> "$GITHUB_OUTPUT"
+          echo "Using organization: ${ORG}"
+
+      - name: Prepare sing-box config
+        env:
+          UUID: ${{ secrets.UUID }}
+          ARGO_DOMAIN: ${{ secrets.ARGO_DOMAIN }}
+          ARGO_TOKEN: ${{ secrets.ARGO_TOKEN }}
+        run: |
+          if [[ -z "$UUID" ]]; then
+            echo "Secret UUID is required." >&2
+            exit 1
+          fi
+          chmod +x scripts/prepare-config.sh
+          ./scripts/prepare-config.sh "$UUID" "$ARGO_DOMAIN" "$ARGO_TOKEN"
+
+      - name: Build image
+        run: |
+          unikraft build . --output "${{ steps.org.outputs.name }}/unikraft:latest"
+
+      - name: Deploy instance
+        id: deploy
+        env:
+          METRO: ${{ inputs.metro }}
+          ORG: ${{ steps.org.outputs.name }}
+        run: |
+          METRO_CODE="${METRO%% *}"
+          RUN_JSON="$(unikraft run \
+            --metro "$METRO_CODE" \
+            --publish 443:8080/http+tls \
+            -m 512M \
+            --image "${ORG}/unikraft:latest" \
+            -o json)"
+          echo "$RUN_JSON" > run-output.json
+          FQDN="$(jq -r '[.. | objects | .fqdn? | select(type == "string")] | first // empty' run-output.json)"
+          if [[ -z "$FQDN" || "$FQDN" == "null" ]]; then
+            echo "Failed to resolve instance FQDN from deploy output." >&2
+            cat run-output.json >&2
+            exit 1
+          fi
+          echo "fqdn=${FQDN}" >> "$GITHUB_OUTPUT"
+          echo "metro=${METRO_CODE}" >> "$GITHUB_OUTPUT"
+          echo "Deployed at: https://${FQDN}"
+
+      - name: Generate encrypted subscription link
+        env:
+          UUID: ${{ secrets.UUID }}
+          ARGO_DOMAIN: ${{ secrets.ARGO_DOMAIN }}
+        run: |
+          chmod +x scripts/generate-subscription.sh scripts/encrypt-subscription.sh
+          SUBSCRIPTION="$(./scripts/generate-subscription.sh \
+            "$UUID" \
+            "${{ steps.deploy.outputs.fqdn }}" \
+            "$ARGO_DOMAIN")"
+          SUB_URL="$(./scripts/encrypt-subscription.sh "$UUID" "$SUBSCRIPTION")"
+          {
+            echo "### 部署完成"
+            echo ""
+            echo "- **地区**: \`${{ steps.deploy.outputs.metro }}\`"
+            echo "- **域名**: \`${{ steps.deploy.outputs.fqdn }}\`"
+            echo "- **镜像**: \`${{ steps.org.outputs.name }}/unikraft:latest\`"
+            echo ""
+            echo "### 加密订阅链接"
+            echo ""
+            echo "使用你的 UUID 在前端页面离线解密："
+            echo ""
+            echo "${SUB_URL}"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "========================================"
+          echo "Encrypted subscription URL (decrypt with your UUID):"
+          echo "$SUB_URL"
+          echo "========================================"
