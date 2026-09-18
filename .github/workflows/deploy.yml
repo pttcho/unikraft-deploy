@@ -84,6 +84,7 @@ jobs:
           RUN_JSON="$(unikraft run \
             --metro "$METRO_CODE" \
             --publish 443:8080/http+tls \
+            --publish 8880:8081/tls \
             -m 512M \
             --image "${ORG}/unikraft:latest" \
             -o json)"

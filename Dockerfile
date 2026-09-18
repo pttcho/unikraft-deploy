@@ -1,6 +1,6 @@
 FROM alpine AS builder
 
-ARG SING_BOX_VERSION=1.14.0-rc.1
+ARG SING_BOX_VERSION=1.14.1
 
 RUN wget https://github.com/SagerNet/sing-box/releases/download/v${SING_BOX_VERSION}/sing-box-${SING_BOX_VERSION}-linux-amd64.tar.gz && \
     tar -xf sing-box-${SING_BOX_VERSION}-linux-amd64.tar.gz && \

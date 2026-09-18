@@ -6,8 +6,42 @@
   "inbounds": [
     {
       "type": "vless",
+      "tag": "direct-ws",
       "listen": "::",
       "listen_port": 8080,
+      "users": [
+        {
+          "name": "default",
+          "uuid": "YOUR_UUID"
+        }
+      ],
+      "transport": {
+        "type": "ws",
+        "path": "/"
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "direct-httpupgrade",
+      "listen": "::",
+      "listen_port": 8081,
+      "users": [
+        {
+          "name": "default",
+          "uuid": "YOUR_UUID"
+        }
+      ],
+      "transport": {
+        "type": "httpupgrade",
+        "host": "",
+        "path": "/"
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "argo-ws",
+      "listen": "::",
+      "listen_port": 8090,
       "users": [
         {
           "name": "default",
