@@ -10,7 +10,8 @@ on:
         default: primary
         options:
           - primary
-          - secondary      metro:
+          - secondary
+      metro:
         description: 部署地区
         required: true
         type: choice
@@ -40,8 +41,6 @@ jobs:
       - name: Install Unikraft CLI
         run: |
           set -euo pipefail
-
-          # Prefer official apt repo (avoids flaky GitHub release CDN).
           sudo apt-get update
           sudo apt-get install -y ca-certificates curl
           sudo install -d -m 0755 /etc/apt/keyrings
@@ -128,12 +127,10 @@ jobs:
           {
             echo "### 部署完成"
             echo ""
+            echo "- **账号**: \`${{ inputs.account }}\`"
             echo "- **地区**: \`${{ steps.deploy.outputs.metro }}\`"
             echo "- **域名**: \`${{ steps.deploy.outputs.fqdn }}\`"
             echo "- **Argo**: \`${ARGO_DOMAIN}\`"
-            echo "- **镜像**: \`${{ steps.org.outputs.name }}/unikraft:latest\`"
-            echo ""
-            echo "${SUB_URL}"
           } >> "$GITHUB_STEP_SUMMARY"
           echo "Encrypted subscription URL (decrypt with your UUID):"
           echo "$SUB_URL"

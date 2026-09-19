@@ -10,8 +10,9 @@ on:
         default: primary
         options:
           - primary
-          - secondary      metro:
-        description: 部署地区
+          - secondary
+      metro:
+        description: 地区
         required: true
         type: choice
         default: sin - 新加坡 (Singapore)
@@ -41,7 +42,6 @@ jobs:
       - name: Install Unikraft CLI
         run: |
           set -euo pipefail
-
           sudo apt-get update
           sudo apt-get install -y ca-certificates curl
           sudo install -d -m 0755 /etc/apt/keyrings
@@ -64,6 +64,15 @@ jobs:
           UNIKRAFT_TOKEN: ${{ inputs.account == 'secondary' && secrets.UNIKRAFT_TOKEN_2 || secrets.UNIKRAFT_TOKEN }}
         run: echo "$UNIKRAFT_TOKEN" | unikraft login --token -
 
+      - name: List instances
+        env:
+          METRO: ${{ inputs.metro }}
+        run: |
+          METRO_CODE="${METRO%% *}"
+          echo "Listing instances in metro: ${METRO_CODE}"
+          unikraft instances list --filter "metro==${METRO_CODE}" -o table || true
+          echo ""
+
       - name: Delete instance(s)
         env:
           METRO: ${{ inputs.metro }}
@@ -73,16 +82,13 @@ jobs:
           set -euo pipefail
           METRO_CODE="${METRO%% *}"
 
-          echo "Listing instances in metro: ${METRO_CODE}"
-          unikraft instances list --filter "metro==${METRO_CODE}" -o table || true
-          echo ""
-
           if [[ "${DELETE_ALL}" == "true" ]]; then
             echo "Deleting ALL instances in metro ${METRO_CODE}"
             unikraft instances delete --filter "metro==${METRO_CODE}" --force
             {
               echo "### 删除完成"
               echo ""
+              echo "- **账号**: \`${{ inputs.account }}\`"
               echo "- **地区**: \`${METRO_CODE}\`"
               echo "- **范围**: 该地区全部实例"
             } >> "$GITHUB_STEP_SUMMARY"
@@ -100,6 +106,5 @@ jobs:
           {
             echo "### 删除完成"
             echo ""
-            echo "- **地区**: \`${METRO_CODE}\`（列表筛选）"
             echo "- **实例**: \`${INSTANCE}\`"
           } >> "$GITHUB_STEP_SUMMARY"

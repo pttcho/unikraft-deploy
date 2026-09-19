@@ -12,6 +12,14 @@ on:
         required: false
         default: '200'
         type: string
+      account:
+        description: '使用哪个 Unikraft 账号'
+        required: false
+        type: choice
+        default: primary
+        options:
+          - primary
+          - secondary
       metro:
         description: 地区
         required: true
