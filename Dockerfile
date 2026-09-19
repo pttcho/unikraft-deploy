@@ -15,4 +15,6 @@ COPY --from=builder /app /app
 
 EXPOSE 8080 8081 8090
 
-CMD ["/app", "run", "-c", "/config.json"]
+# 构建时 /etc/hosts 是只读挂载写不进去，改到运行时补。
+# unikernel 里没有 /etc/hosts，cloudflared 解析不了 localhost 就回 502。
+CMD ["/bin/sh","-c","echo '127.0.0.1 localhost' >> /etc/hosts 2>/dev/null; echo '::1 localhost' >> /etc/hosts 2>/dev/null; exec /app run -c /config.json"]

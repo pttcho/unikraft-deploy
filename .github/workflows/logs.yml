@@ -71,5 +71,4 @@ jobs:
         run: |
           METRO_CODE="${METRO%% *}"
           echo "================ LOGS: ${INSTANCE} ================"
-          unikraft instance logs "${INSTANCE}" --metro "${METRO_CODE}" --tail "${LINES}" || \
-            unikraft instances logs "${INSTANCE}" --tail "${LINES}" || true
+          UKC_METRO="${METRO_CODE}" unikraft instances logs "${INSTANCE}" --tail "${LINES}" || true
