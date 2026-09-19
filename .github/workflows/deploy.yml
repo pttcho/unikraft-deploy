@@ -14,6 +14,14 @@ on:
           - sfo - 旧金山 (San Francisco, US)
           - sin - 新加坡 (Singapore)
           - was - 华盛顿 (Washington DC, US)
+      argo_domain:
+        description: 'Argo 域名（留空 = 用仓库 secret）'
+        required: false
+        type: string
+      argo_token:
+        description: 'Argo 隧道 Token（留空 = 用仓库 secret）'
+        required: false
+        type: string
 
 jobs:
   deploy:
@@ -60,8 +68,8 @@ jobs:
       - name: Prepare sing-box config
         env:
           UUID: ${{ secrets.UUID }}
-          ARGO_DOMAIN: ${{ secrets.ARGO_DOMAIN }}
-          ARGO_TOKEN: ${{ secrets.ARGO_TOKEN }}
+          ARGO_DOMAIN: ${{ inputs.argo_domain != '' && inputs.argo_domain || secrets.ARGO_DOMAIN }}
+          ARGO_TOKEN: ${{ inputs.argo_token != '' && inputs.argo_token || secrets.ARGO_TOKEN }}
         run: |
           if [[ -z "$UUID" ]]; then
             echo "Secret UUID is required." >&2
@@ -102,7 +110,7 @@ jobs:
       - name: Generate encrypted subscription link
         env:
           UUID: ${{ secrets.UUID }}
-          ARGO_DOMAIN: ${{ secrets.ARGO_DOMAIN }}
+          ARGO_DOMAIN: ${{ inputs.argo_domain != '' && inputs.argo_domain || secrets.ARGO_DOMAIN }}
         run: |
           chmod +x scripts/generate-subscription.sh scripts/encrypt-subscription.sh
           SUBSCRIPTION="$(./scripts/generate-subscription.sh \
@@ -115,15 +123,10 @@ jobs:
             echo ""
             echo "- **地区**: \`${{ steps.deploy.outputs.metro }}\`"
             echo "- **域名**: \`${{ steps.deploy.outputs.fqdn }}\`"
+            echo "- **Argo**: \`${ARGO_DOMAIN}\`"
             echo "- **镜像**: \`${{ steps.org.outputs.name }}/unikraft:latest\`"
-            echo ""
-            echo "### 获取订阅信息"
-            echo ""
-            echo "访问下方链接并使用 UUID 解密订阅信息。"
             echo ""
             echo "${SUB_URL}"
           } >> "$GITHUB_STEP_SUMMARY"
-          echo "========================================"
           echo "Encrypted subscription URL (decrypt with your UUID):"
           echo "$SUB_URL"
-          echo "========================================"
