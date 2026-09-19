@@ -38,22 +38,6 @@
       }
     },
     {
-      "type": "vless",
-      "tag": "argo-ws",
-      "listen": "::",
-      "listen_port": 8090,
-      "users": [
-        {
-          "name": "default",
-          "uuid": "YOUR_UUID"
-        }
-      ],
-      "transport": {
-        "type": "ws",
-        "path": "/api/v2/stream"
-      }
-    },
-    {
       "type": "cloudflared",
       "tag": "argo-tunnel",
       "token": "YOUR_TOKEN"
