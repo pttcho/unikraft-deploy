@@ -1,0 +1,75 @@
+name: Dump Instance Logs
+
+on:
+  workflow_dispatch:
+    inputs:
+      instance:
+        description: 实例名称
+        required: true
+        type: string
+      lines:
+        description: 显示行数
+        required: false
+        default: '200'
+        type: string
+      metro:
+        description: 地区
+        required: true
+        default: sin - 新加坡 (Singapore)
+        type: choice
+        options:
+          - dal - 达拉斯 (Dallas, US)
+          - fra - 法兰克福 (Frankfurt, DE)
+          - sfo - 旧金山 (San Francisco, US)
+          - sin - 新加坡 (Singapore)
+          - was - 华盛顿 (Washington DC, US)
+
+jobs:
+  logs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Unikraft CLI
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y ca-certificates curl
+          sudo install -d -m 0755 /etc/apt/keyrings
+          sudo curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 \
+            -o /etc/apt/keyrings/unikraft-cli.gpg \
+            https://pkg.unikraft.com/debian/cli-apt/keys/cli-apt.gpg
+          sudo tee /etc/apt/sources.list.d/unikraft-cli.sources >/dev/null <<EOF
+          Types: deb
+          URIs: https://pkg.unikraft.com/debian/cli-apt/
+          Suites: $(. /etc/os-release && echo "$VERSION_CODENAME")
+          Components: stable
+          Signed-By: /etc/apt/keyrings/unikraft-cli.gpg
+          EOF
+          sudo apt-get update
+          sudo apt-get install -y unikraft-cli
+          unikraft version
+
+      - name: Login to Unikraft Cloud
+        env:
+          UNIKRAFT_TOKEN: ${{ secrets.UNIKRAFT_TOKEN }}
+        run: echo "$UNIKRAFT_TOKEN" | unikraft login --token -
+
+      - name: List instances
+        env:
+          METRO: ${{ inputs.metro }}
+        run: |
+          METRO_CODE="${METRO%% *}"
+          unikraft instances list --filter "metro==${METRO_CODE}" -o table || true
+
+      - name: Dump logs
+        env:
+          METRO: ${{ inputs.metro }}
+          INSTANCE: ${{ inputs.instance }}
+          LINES: ${{ inputs.lines }}
+        run: |
+          METRO_CODE="${METRO%% *}"
+          echo "================ LOGS: ${INSTANCE} ================"
+          unikraft instance logs "${INSTANCE}" --metro "${METRO_CODE}" --tail "${LINES}" || \
+            unikraft instances logs "${INSTANCE}" --tail "${LINES}" || true
