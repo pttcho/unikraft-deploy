@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       instance:
-        description: 实例名称
+        description: 实例名称或 UUID
         required: true
         type: string
       lines:
@@ -56,19 +56,19 @@ jobs:
           UNIKRAFT_TOKEN: ${{ secrets.UNIKRAFT_TOKEN }}
         run: echo "$UNIKRAFT_TOKEN" | unikraft login --token -
 
-      - name: List instances
-        env:
-          METRO: ${{ inputs.metro }}
+      - name: List instances as JSON
         run: |
-          METRO_CODE="${METRO%% *}"
-          unikraft instances list --filter "metro==${METRO_CODE}" -o table || true
+          echo "=========== instances list (json) ==========="
+          unikraft instances list -o json || true
+          echo "=========== instances list (raw) ==========="
+          unikraft instances list -o raw || true
 
       - name: Dump logs
         env:
-          METRO: ${{ inputs.metro }}
           INSTANCE: ${{ inputs.instance }}
           LINES: ${{ inputs.lines }}
         run: |
-          METRO_CODE="${METRO%% *}"
-          echo "================ LOGS: ${INSTANCE} ================"
-          UKC_METRO="${METRO_CODE}" unikraft instances logs "${INSTANCE}" --tail "${LINES}" || true
+          echo "=========== LOGS: ${INSTANCE} ==========="
+          unikraft instances logs "${INSTANCE}" --tail "${LINES}" || true
+          echo "=========== help ==========="
+          unikraft instances logs --help || true
