@@ -53,7 +53,7 @@ jobs:
 
       - name: Login to Unikraft Cloud
         env:
-          UNIKRAFT_TOKEN: ${{ secrets.UNIKRAFT_TOKEN }}
+          UNIKRAFT_TOKEN: ${{ inputs.account == 'secondary' && secrets.UNIKRAFT_TOKEN_2 || secrets.UNIKRAFT_TOKEN }}
         run: echo "$UNIKRAFT_TOKEN" | unikraft login --token -
 
       - name: List instances as JSON

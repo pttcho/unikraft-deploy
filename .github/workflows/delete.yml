@@ -3,7 +3,14 @@ name: Delete Unikraft Instance
 on:
   workflow_dispatch:
     inputs:
-      metro:
+      account:
+        description: '使用哪个 Unikraft 账号'
+        required: false
+        type: choice
+        default: primary
+        options:
+          - primary
+          - secondary      metro:
         description: 部署地区
         required: true
         type: choice
@@ -54,7 +61,7 @@ jobs:
 
       - name: Login to Unikraft Cloud
         env:
-          UNIKRAFT_TOKEN: ${{ secrets.UNIKRAFT_TOKEN }}
+          UNIKRAFT_TOKEN: ${{ inputs.account == 'secondary' && secrets.UNIKRAFT_TOKEN_2 || secrets.UNIKRAFT_TOKEN }}
         run: echo "$UNIKRAFT_TOKEN" | unikraft login --token -
 
       - name: Delete instance(s)
