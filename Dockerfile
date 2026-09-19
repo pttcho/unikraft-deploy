@@ -10,11 +10,18 @@ RUN wget https://github.com/SagerNet/sing-box/releases/download/v${SING_BOX_VERS
 
 FROM debian:trixie-slim
 
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends nginx ca-certificates && \
+    rm -rf /var/lib/apt/lists/* && \
+    mkdir -p /tmp/nginx/body /tmp/nginx/proxy /tmp/nginx/fastcgi /tmp/nginx/uwsgi /tmp/nginx/scgi
+
 COPY templates/config.json /config.json
+COPY templates/nginx.conf /etc/nginx/nginx.conf
+COPY templates/decoy /var/www/decoy
 COPY --from=builder /app /app
 
 EXPOSE 8080 8081 8090
 
-# 构建时 /etc/hosts 是只读挂载写不进去，改到运行时补。
-# unikernel 里没有 /etc/hosts，cloudflared 解析不了 localhost 就回 502。
-CMD ["/bin/sh","-c","echo '127.0.0.1 localhost' >> /etc/hosts 2>/dev/null; echo '::1 localhost' >> /etc/hosts 2>/dev/null; exec /app run -c /config.json"]
+# unikernel 无 /etc/hosts，cloudflared 解析不了 localhost 会回 502，运行时补上。
+# nginx 前置：秘密路径走代理，其余请求返回伪装站点。
+CMD ["/bin/sh","-c","echo '127.0.0.1 localhost' >> /etc/hosts 2>/dev/null; nginx -g 'daemon off;' & sleep 1; exec /app run -c /config.json"]

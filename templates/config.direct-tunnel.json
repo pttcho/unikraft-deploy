@@ -6,9 +6,9 @@
   "inbounds": [
     {
       "type": "vless",
-      "tag": "direct-ws",
-      "listen": "::",
-      "listen_port": 8080,
+      "tag": "backend-ws",
+      "listen": "127.0.0.1",
+      "listen_port": 18080,
       "users": [
         {
           "name": "default",
@@ -17,14 +17,14 @@
       ],
       "transport": {
         "type": "ws",
-        "path": "/"
+        "path": "/api/v2/stream"
       }
     },
     {
       "type": "vless",
-      "tag": "direct-httpupgrade",
-      "listen": "::",
-      "listen_port": 8081,
+      "tag": "backend-httpupgrade",
+      "listen": "127.0.0.1",
+      "listen_port": 18081,
       "users": [
         {
           "name": "default",
@@ -34,23 +34,7 @@
       "transport": {
         "type": "httpupgrade",
         "host": "",
-        "path": "/"
-      }
-    },
-    {
-      "type": "vless",
-      "tag": "argo-ws",
-      "listen": "::",
-      "listen_port": 8090,
-      "users": [
-        {
-          "name": "default",
-          "uuid": "YOUR_UUID"
-        }
-      ],
-      "transport": {
-        "type": "ws",
-        "path": "/"
+        "path": "/cdn/v1/sync"
       }
     },
     {
@@ -58,14 +42,5 @@
       "tag": "argo-tunnel",
       "token": "YOUR_TOKEN"
     }
-  ],
-  "route": {
-    "rules": [
-      {
-        "inbound": ["argo-tunnel"],
-        "action": "route-options",
-        "override_address": "127.0.0.1"
-      }
-    ]
-  }
+  ]
 }
