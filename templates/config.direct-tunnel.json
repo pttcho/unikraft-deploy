@@ -55,7 +55,17 @@
     },
     {
       "type": "cloudflared",
+      "tag": "argo-tunnel",
       "token": "YOUR_TOKEN"
     }
-  ]
+  ],
+  "route": {
+    "rules": [
+      {
+        "inbound": ["argo-tunnel"],
+        "action": "route-options",
+        "override_address": "127.0.0.1"
+      }
+    ]
+  }
 }
