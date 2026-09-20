@@ -40,7 +40,9 @@
     {
       "type": "cloudflared",
       "tag": "argo-tunnel",
-      "token": "YOUR_TOKEN"
+      "token": "YOUR_TOKEN",
+      "protocol": "http2",
+      "ha_connections": 4
     }
   ],
   "route": {
