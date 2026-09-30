@@ -1,0 +1,77 @@
+name: Throughput Probe
+
+# 手动诊断：边持续压测边高频采样实例 tx_bytes，判断是「平线限速」还是「乱跳拥塞」。
+# 在干净的机房线路上跑，排除本地线路/GFW；只读实例指标，不改动节点。
+on:
+  workflow_dispatch:
+    inputs:
+      seconds:
+        description: '压测时长（秒）'
+        required: false
+        type: string
+        default: '30'
+      parallel:
+        description: '并发连接数'
+        required: false
+        type: string
+        default: '4'
+      metros:
+        description: '要测的节点（逗号分隔：sfo,sin,dal,was；留空=全部）'
+        required: false
+        type: string
+        default: ''
+      url:
+        description: '下载目标'
+        required: false
+        type: string
+        default: 'https://speed.cloudflare.com/__down?bytes=200000000'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: proxy-throughput-probe
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - account: primary
+            metro: sfo
+          - account: primary
+            metro: sin
+          - account: secondary
+            metro: dal
+          - account: secondary
+            metro: was
+    name: probe ${{ matrix.metro }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install xray client for load generation
+        run: |
+          set -euo pipefail
+          curl -sSL --retry 3 -o /tmp/xray.zip \
+            https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip
+          mkdir -p /tmp/xray
+          unzip -oq /tmp/xray.zip -d /tmp/xray
+          chmod +x /tmp/xray/xray
+          /tmp/xray/xray version | head -1
+
+      - name: Sustained load + tx sampling for ${{ matrix.metro }}
+        if: inputs.metros == '' || contains(format(',{0},', inputs.metros), format(',{0},', matrix.metro))
+        env:
+          ACCOUNT: ${{ matrix.account }}
+          METRO: ${{ matrix.metro }}
+          SECONDS: ${{ inputs.seconds || '30' }}
+          PARALLEL: ${{ inputs.parallel || '4' }}
+          URL: ${{ inputs.url || 'https://speed.cloudflare.com/__down?bytes=200000000' }}
+          UNIKRAFT_TOKEN: ${{ matrix.account == 'secondary' && secrets.UNIKRAFT_TOKEN_2 || secrets.UNIKRAFT_TOKEN }}
+          UUID: ${{ secrets.UUID }}
+        run: python3 scripts/throughput-probe.py
