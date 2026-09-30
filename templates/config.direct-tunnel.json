@@ -42,7 +42,8 @@
       "tag": "argo-tunnel",
       "token": "YOUR_TOKEN",
       "protocol": "http2",
-      "ha_connections": 4
+      "ha_connections": 8,
+      "edge_ip_version": 4
     }
   ],
   "route": {
