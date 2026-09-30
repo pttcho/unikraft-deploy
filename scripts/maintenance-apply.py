@@ -338,8 +338,10 @@ def verify():
         if n["state"] != "running" or n["memory_mb"] != TARGET_MEMORY or n["vcpus"] != 1:
             raise Failure("Final running resource readback mismatch for " + metro)
         records.append({"node": public(n, metro), "health": healthy(n, argo)})
-    if ACCOUNT == "secondary" and original("fra")["state"] != "stopped":
-        raise Failure("Old FRA is not stopped")
+    if ACCOUNT == "secondary":
+        old_fra = [n for n in nodes("fra") if n.get("uuid") == EXPECTED["fra"][0]]
+        if old_fra and old_fra[0]["state"] != "stopped":
+            raise Failure("Old FRA is still active")
     emit("FINAL_NODE_VERIFICATION", {"account": ACCOUNT, "utc": utc(), "nodes": records})
 
 

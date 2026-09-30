@@ -14,6 +14,7 @@ on:
           - apply
           - repair-diagnostics
           - rebuild-was
+          - complete-was
       confirmation:
         description: 'Apply requires FRA-TO-WAS-ALL-4096; inspect leaves empty'
         type: string
@@ -210,6 +211,47 @@ jobs:
           UNIKRAFT_TOKEN: ${{ secrets.UNIKRAFT_TOKEN_2 }}
         run: python3 scripts/maintenance-apply.py
       - name: Verify WAS and DAL actual running resources
+        env:
+          ACCOUNT: secondary
+          ACTION: verify
+          UNIKRAFT_TOKEN: ${{ secrets.UNIKRAFT_TOKEN_2 }}
+        run: python3 scripts/maintenance-apply.py
+
+
+  complete-was:
+    if: inputs.phase == 'complete-was'
+    needs: inspect
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install official CLI for verified registry read
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y ca-certificates curl python3-yaml
+          sudo install -d -m 0755 /etc/apt/keyrings
+          sudo curl -fsSL --retry 3 -o /etc/apt/keyrings/unikraft-cli.gpg https://pkg.unikraft.com/debian/cli-apt/keys/cli-apt.gpg
+          sudo tee /etc/apt/sources.list.d/unikraft-cli.sources >/dev/null <<EOF
+          Types: deb
+          URIs: https://pkg.unikraft.com/debian/cli-apt/
+          Suites: $(. /etc/os-release && echo "$VERSION_CODENAME")
+          Components: stable
+          Signed-By: /etc/apt/keyrings/unikraft-cli.gpg
+          EOF
+          sudo apt-get update
+          sudo apt-get install -y unikraft-cli
+      - name: Login to the private image namespace
+        env:
+          UNIKRAFT_TOKEN: ${{ secrets.UNIKRAFT_TOKEN_2 }}
+        run: echo "$UNIKRAFT_TOKEN" | unikraft login --token -
+      - name: Delete only explicitly authorized FRA then start WAS
+        env:
+          ACCOUNT: secondary
+          CONFIRM: ${{ inputs.confirmation }}
+          UNIKRAFT_TOKEN: ${{ secrets.UNIKRAFT_TOKEN_2 }}
+        run: python3 scripts/complete-was.py
+      - name: Verify actual secondary node resources
         env:
           ACCOUNT: secondary
           ACTION: verify
