@@ -1,0 +1,38 @@
+name: Node Metrics
+
+# 只读：拉四个节点的 CPU / 内存 / 网络累计计数，采两次算速率。
+# 只调 GET /instances/metrics，不改动任何东西。
+on:
+  workflow_dispatch:
+    inputs:
+      interval_s:
+        description: '两次采样间隔秒数（用于算瞬时速率）'
+        required: false
+        type: string
+        default: '15'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: proxy-node-metrics
+  cancel-in-progress: false
+
+jobs:
+  metrics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        account: [primary, secondary]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read-only resource metrics for ${{ matrix.account }} nodes
+        env:
+          ACCOUNT: ${{ matrix.account }}
+          INTERVAL_S: ${{ inputs.interval_s || '15' }}
+          UNIKRAFT_TOKEN: ${{ matrix.account == 'secondary' && secrets.UNIKRAFT_TOKEN_2 || secrets.UNIKRAFT_TOKEN }}
+        run: python3 scripts/node-metrics.py
