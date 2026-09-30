@@ -1,0 +1,54 @@
+name: Node Image Upgrade
+
+# 换镜像前的只读前置检查：确认每个节点的隧道 token 能从它自己的部署运行日志里恢复。
+# 换镜像必须把每个节点自己的 tunnel token 烧进新镜像（四个节点四条隧道），
+# 这一步只读、只报告能否恢复，绝不打印 token 值。phase=apply 尚未启用。
+on:
+  workflow_dispatch:
+    inputs:
+      phase:
+        description: '目前只支持 check（只读）'
+        required: true
+        type: choice
+        default: check
+        options:
+          - check
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: proxy-node-image-upgrade
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - node: sfo
+            match_fqdn: wispy-frost-5xvajfi9.sfo.unikraft.app
+          - node: sin
+            match_fqdn: aged-mountain-xuanowfg.sin.unikraft.app
+          - node: dal
+            match_fqdn: morning-cloud-gfw0gjvx.dal.unikraft.app
+          # WAS 的隧道来自原 FRA，所以 token 只能从 FRA 那次部署的日志里找。
+          - node: was
+            match_fqdn: little-snowflake-y84r85js.fra.unikraft.app
+    name: token check ${{ matrix.node }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check whether this node's tunnel token is recoverable (read-only)
+        env:
+          PHASE: check
+          NODE: ${{ matrix.node }}
+          MATCH_FQDN: ${{ matrix.match_fqdn }}
+          REPO: ${{ github.repository }}
+          GH_READ_TOKEN: ${{ github.token }}
+        run: python3 scripts/recover-node-token.py || true
