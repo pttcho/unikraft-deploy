@@ -1,0 +1,117 @@
+name: Registry Maintenance
+
+# 镜像仓库（unikraft.io/<org>/unikraft）有配额上限，打满后 unikraft build 会 403。
+# 这个工作流只做两件事：只读列出镜像；带确认时删除指定镜像以腾出空间。
+# 默认 action=list，只读；删除必须显式 action=delete 且 confirmation=DELETE-REGISTRY-IMAGES。
+on:
+  workflow_dispatch:
+    inputs:
+      registry_account:
+        description: '使用哪个账号的仓库'
+        type: choice
+        required: true
+        default: secondary
+        options:
+          - primary
+          - secondary
+      action:
+        description: 'list = 只读列出；delete = 删除 targets'
+        type: choice
+        required: true
+        default: list
+        options:
+          - list
+          - delete
+      targets:
+        description: '要删除的镜像引用（空格分隔；delete 时必填）'
+        type: string
+        required: false
+        default: ''
+      confirmation:
+        description: 'delete 必须填 DELETE-REGISTRY-IMAGES'
+        type: string
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: proxy-registry-maintenance
+  cancel-in-progress: false
+
+jobs:
+  registry:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Unikraft CLI
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y ca-certificates curl
+          sudo install -d -m 0755 /etc/apt/keyrings
+          sudo curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 \
+            -o /etc/apt/keyrings/unikraft-cli.gpg \
+            https://pkg.unikraft.com/debian/cli-apt/keys/cli-apt.gpg
+          sudo tee /etc/apt/sources.list.d/unikraft-cli.sources >/dev/null <<EOF
+          Types: deb
+          URIs: https://pkg.unikraft.com/debian/cli-apt/
+          Suites: $(. /etc/os-release && echo "$VERSION_CODENAME")
+          Components: stable
+          Signed-By: /etc/apt/keyrings/unikraft-cli.gpg
+          EOF
+          sudo apt-get update
+          sudo apt-get install -y unikraft-cli
+          unikraft version
+
+      - name: Login to Unikraft Cloud
+        env:
+          UNIKRAFT_TOKEN: ${{ inputs.registry_account == 'primary' && secrets.UNIKRAFT_TOKEN || secrets.UNIKRAFT_TOKEN_2 }}
+        run: echo "$UNIKRAFT_TOKEN" | unikraft login --token -
+
+      - name: Inspect the image command surface (read-only)
+        run: |
+          unikraft images --help || true
+          unikraft images list --help || unikraft image list --help || true
+          unikraft images delete --help || unikraft image delete --help || true
+
+      - name: List images (read-only)
+        run: |
+          set -euo pipefail
+          echo "=== unikraft images list ==="
+          unikraft images list || unikraft image list || true
+          echo "=== unikraft images list -o json ==="
+          unikraft images list -o json 2>/dev/null || unikraft image list -o json 2>/dev/null || true
+
+      - name: Refuse a delete without the confirmation string
+        if: inputs.action == 'delete' && inputs.confirmation != 'DELETE-REGISTRY-IMAGES'
+        run: |
+          echo "action=delete requires confirmation=DELETE-REGISTRY-IMAGES" >&2
+          exit 1
+
+      - name: Delete requested images (gated)
+        if: inputs.action == 'delete' && inputs.confirmation == 'DELETE-REGISTRY-IMAGES'
+        env:
+          TARGETS: ${{ inputs.targets }}
+        run: |
+          set -euo pipefail
+          if [ -z "${TARGETS:-}" ]; then
+            echo "delete requested but no targets supplied" >&2
+            exit 1
+          fi
+          for target in $TARGETS; do
+            echo "REGISTRY_DELETE target=${target}"
+            unikraft images delete "${target}" || unikraft image delete "${target}" \
+              || echo "REGISTRY_DELETE_FAILED target=${target}" >&2
+          done
+
+      - name: List images after (read-only)
+        if: inputs.action == 'delete'
+        run: |
+          set -euo pipefail
+          echo "=== after ==="
+          unikraft images list || unikraft image list || true
