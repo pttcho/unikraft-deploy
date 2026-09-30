@@ -6,8 +6,11 @@ import re
 import subprocess
 
 REF = "qilonglin/unikraft:was-migration-20260930"
-result = subprocess.run(["unikraft", "images", "get", REF, "-o", "json", "-f", "ref,digest,namespace"], capture_output=True, text=True, timeout=45)
+result = subprocess.run(["unikraft", "images", "get", "unikraft.io/" + REF, "-o", "json"], capture_output=True, text=True, timeout=45)
 if result.returncode:
+    token = os.environ.get("UNIKRAFT_TOKEN", "")
+    detail = result.stderr.replace(token, "[REDACTED]") if token else result.stderr
+    print("NEW_IMAGE_LOOKUP_ERROR " + json.dumps({"exit": result.returncode, "detail": detail[-1800:]}), flush=True)
     raise SystemExit("New migration image could not be read from the authenticated registry. FRA is unchanged.")
 obj = json.loads(result.stdout)
 

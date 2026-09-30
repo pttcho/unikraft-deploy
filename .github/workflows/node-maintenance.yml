@@ -192,6 +192,10 @@ jobs:
           set -euo pipefail
           bash scripts/prepare-config.sh "$UUID" "$ARGO_DOMAIN" "$ARGO_TOKEN"
           unikraft build . --output qilonglin/unikraft:was-migration-20260930
+      - name: Explicitly publish the local migration image without touching latest
+        env:
+          UNIKRAFT_TOKEN: ${{ secrets.UNIKRAFT_TOKEN_2 }}
+        run: python3 scripts/publish-was-image.py
       - name: Bind only the stopped WAS candidate to the verified image
         env:
           ACCOUNT: secondary
