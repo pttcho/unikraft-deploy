@@ -7,7 +7,7 @@ import urllib.request
 
 EXPECTED = {
     "primary": {"sin": "aged-mountain-xuanowfg.sin.unikraft.app", "sfo": "wispy-frost-5xvajfi9.sfo.unikraft.app"},
-    "secondary": {"fra": "little-snowflake-y84r85js.fra.unikraft.app", "dal": "morning-cloud-gfw0gjvx.dal.unikraft.app", "was": None},
+    "secondary": {"dal": "morning-cloud-gfw0gjvx.dal.unikraft.app", "was": "crimson-breeze-k85idd62.was.unikraft.app"},
 }
 ACCOUNT = os.environ["ACCOUNT"]
 TOKEN = os.environ["UNIKRAFT_TOKEN"].strip()

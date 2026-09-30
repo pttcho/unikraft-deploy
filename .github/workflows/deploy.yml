@@ -37,7 +37,7 @@ on:
         description: '新实例内存（不是 Storage；须先核实 RAM 配额）'
         required: false
         type: choice
-        default: '512M'
+        default: '4096M'
         options:
           - '512M'
           - '1024M'
@@ -82,7 +82,7 @@ jobs:
       - name: Validate requested resources
         env:
           VCPUS: ${{ inputs.vcpus || '1' }}
-          MEMORY: ${{ inputs.memory || '512M' }}
+          MEMORY: ${{ inputs.memory || '4096M' }}
         run: |
           set -euo pipefail
           case "$VCPUS" in
@@ -133,7 +133,7 @@ jobs:
           METRO: ${{ inputs.metro }}
           ORG: ${{ steps.org.outputs.name }}
           VCPUS: ${{ inputs.vcpus || '1' }}
-          MEMORY: ${{ inputs.memory || '512M' }}
+          MEMORY: ${{ inputs.memory || '4096M' }}
         run: |
           METRO_CODE="${METRO%% *}"
           RUN_JSON="$(unikraft run \
@@ -160,7 +160,7 @@ jobs:
           UUID: ${{ secrets.UUID }}
           ARGO_DOMAIN: ${{ inputs.argo_domain != '' && inputs.argo_domain || secrets.ARGO_DOMAIN }}
           VCPUS: ${{ inputs.vcpus || '1' }}
-          MEMORY: ${{ inputs.memory || '512M' }}
+          MEMORY: ${{ inputs.memory || '4096M' }}
         run: |
           chmod +x scripts/generate-subscription.sh scripts/encrypt-subscription.sh
           SUBSCRIPTION="$(./scripts/generate-subscription.sh \
