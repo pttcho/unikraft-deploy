@@ -1,0 +1,54 @@
+name: Daily Node Restart
+
+# 每天自动重启四个代理节点（SFO / SIN / DAL / WAS），四个 job 全并行。
+# 每个节点重启后只校验 Argo 隧道入口是否恢复。
+# 时间：cron 用 UTC（北京时间 = UTC+8）。当前 '12 22 * * *' = 北京时间每天 06:12。
+# 改时间就改这一行；例如 07:30 北京时间 = '30 23 * * *'。
+on:
+  schedule:
+    - cron: '12 22 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: '只检查不改动（true = 干跑，不重启）'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: proxy-daily-restart
+  cancel-in-progress: false
+
+jobs:
+  restart:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        # 四个节点各一个 job，全并行
+        include:
+          - account: primary
+            metro: sfo
+          - account: primary
+            metro: sin
+          - account: secondary
+            metro: dal
+          - account: secondary
+            metro: was
+    name: restart ${{ matrix.metro }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Restart ${{ matrix.metro }} (stop + start, then Argo health check)
+        env:
+          ACCOUNT: ${{ matrix.account }}
+          METRO: ${{ matrix.metro }}
+          CONFIRM: DAILY-RESTART
+          DRY_RUN: ${{ inputs.dry_run && '1' || '0' }}
+          UNIKRAFT_TOKEN: ${{ matrix.account == 'secondary' && secrets.UNIKRAFT_TOKEN_2 || secrets.UNIKRAFT_TOKEN }}
+        run: python3 scripts/daily-restart.py
