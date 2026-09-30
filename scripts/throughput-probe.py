@@ -34,7 +34,9 @@ EXPECTED = {
         "was": ("576733ad-701c-4b15-b8b7-0e213de656d4", "zheshi111.mkvskg.dpdns.org"),
     },
 }
-ENTRY = "saas.sin.fan"
+# Entry address to dial. Empty = use the node's own tunnel domain, which resolves
+# globally; saas.sin.fan may not resolve outside the intended region.
+ENTRY = os.environ.get("ENTRY", "").strip()
 ACCOUNT = os.environ.get("ACCOUNT", "").strip()
 METRO = os.environ.get("METRO", "").strip()
 TOKEN = os.environ.get("UNIKRAFT_TOKEN", "").strip()
@@ -99,17 +101,17 @@ def wait_port(timeout=15):
     return False
 
 
-def load_worker(stop, results, index):
+def load_worker(results, index):
     out = subprocess.run(
-        ["curl", "-s", "-o", "/dev/null", "-m", str(int(SECONDS) + 20),
+        ["curl", "-s", "-o", "/dev/null", "-m", str(int(SECONDS) + 2),
          "--socks5-hostname", "127.0.0.1:%d" % PORT,
-         "-w", "%{speed_download} %{size_download}", URL],
+         "-w", "%{speed_download} %{size_download} %{http_code}", URL],
         capture_output=True, text=True)
-    parts = (out.stdout or "0 0").split()
+    parts = (out.stdout or "0 0 000").split()
     try:
-        results[index] = (float(parts[0]), float(parts[1]))
+        results[index] = (float(parts[0]), float(parts[1]), parts[2])
     except (ValueError, IndexError):
-        results[index] = (0.0, 0.0)
+        results[index] = (0.0, 0.0, "000")
 
 
 def main():
@@ -118,6 +120,9 @@ def main():
     if not TOKEN or not UUID or METRO not in METROS:
         raise Failure("missing token/uuid or bad metro")
     uid, sni = EXPECTED[ACCOUNT][METRO]
+    global ENTRY
+    if not ENTRY:
+        ENTRY = sni
 
     tmp = tempfile.mkdtemp(prefix="probe-")
     cfg = os.path.join(tmp, "config.json")
@@ -127,16 +132,20 @@ def main():
     try:
         if not wait_port():
             raise Failure("xray socks port did not open (bad config?)")
-        # warm up the tunnel so the first metrics delta is meaningful
-        subprocess.run(["curl", "-s", "-o", "/dev/null", "-m", "15",
-                        "--socks5-hostname", "127.0.0.1:%d" % PORT,
-                        "https://api.ipify.org"], capture_output=True)
+        # Prove the tunnel actually carries traffic before measuring anything.
+        warm = subprocess.run(["curl", "-s", "-m", "20",
+                               "--socks5-hostname", "127.0.0.1:%d" % PORT,
+                               "https://api.ipify.org"], capture_output=True, text=True)
+        exit_ip = (warm.stdout or "").strip()
+        if not exit_ip:
+            raise Failure("tunnel unreachable from this runner via " + ENTRY +
+                          " (exit IP lookup returned nothing)")
+        emit("PROBE_WARMUP", {"metro": METRO, "entry": ENTRY, "exit_ip": exit_ip})
 
         base = metrics(uid)
         series = []
-        stop = threading.Event()
         results = {}
-        threads = [threading.Thread(target=load_worker, args=(stop, results, i), daemon=True)
+        threads = [threading.Thread(target=load_worker, args=(results, i), daemon=True)
                    for i in range(PARALLEL)]
         started = time.time()
         for t in threads:
@@ -164,9 +173,8 @@ def main():
             })
             last, last_t = cur, now
 
-        stop.set()
         for t in threads:
-            t.join(timeout=5)
+            t.join(timeout=SECONDS + 15)
         final = metrics(uid)
 
         rates = [s["tx_mbps"] for s in series if "tx_mbps" in s]
@@ -192,9 +200,10 @@ def main():
             }
         emit("PROBE_RESULT", {
             "account": ACCOUNT, "metro": METRO, "name": final.get("name"), "entry": ENTRY,
-            "sni": sni, "parallel": PARALLEL, "seconds": SECONDS, "url": URL,
+            "sni": sni, "exit_ip": exit_ip, "parallel": PARALLEL, "seconds": SECONDS, "url": URL,
             "series": series,
-            "curl_workers_mbps": [round(v[0] * 8 / 1e6, 2) for v in results.values()],
+            "workers": [{"mbps": round(v[0] * 8 / 1e6, 2), "mb": round(v[1] / 1048576, 2),
+                         "http": v[2]} for v in results.values()],
             "verdict": verdict,
         })
     finally:
