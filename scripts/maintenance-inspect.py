@@ -72,5 +72,24 @@ for metro, expected in EXPECTED[ACCOUNT].items():
         eligible = q["limits"]["max_memory_mb"] >= 4096 and q["hard"]["live_memory_mb"] - q["used"]["live_memory_mb"] >= 4096
         item = {"metro": metro, "eligible_4096": eligible, "quota": {"used": q["used"], "hard": q["hard"], "limits": q["limits"]},
                 "existing_instances": [{"uuid": n["uuid"], "name": n["name"], "state": n["state"], "memory_mb": n["memory_mb"]} for n in rows]}
+    if metro == "was":
+        diagnostics = []
+        for existing in rows:
+            if existing.get("name") != "unikraft-proxy-was-20260930":
+                continue
+            detailed = get(metro, "/instances/" + existing["uuid"] + "?details=true").get("instances", [existing])[0]
+            keys = ["uuid", "name", "state", "memory_mb", "vcpus", "image", "created_at", "started_at", "stopped_at", "start_count", "restart_count", "stop_reason", "stop_code", "exit_code", "boot_time_us", "net_time_us", "vmm_start_time_us", "vmm_load_time_us", "vmm_ready_time_us"]
+            diagnostic = {k: detailed.get(k) for k in keys}
+            try:
+                logs = get(metro, "/instances/" + existing["uuid"] + "/logs")
+                raw = json.dumps(logs, ensure_ascii=False).replace(TOKEN, "[REDACTED]")
+                import re
+                raw = re.sub(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", "[UUID]", raw)
+                raw = re.sub(r"[A-Za-z0-9_+/=-]{100,}", "[LONG VALUE REDACTED]", raw)
+                diagnostic["boot_log_excerpt"] = raw[-14000:]
+            except SystemExit:
+                diagnostic["boot_log_excerpt"] = "Logs unavailable"
+            diagnostics.append(diagnostic)
+        item["was_diagnostics"] = diagnostics
     report.append(item)
 print("MAINTENANCE_PREFLIGHT " + json.dumps({"account": ACCOUNT, "mode": "read-only", "nodes_modified": False, "regions": report}), flush=True)
