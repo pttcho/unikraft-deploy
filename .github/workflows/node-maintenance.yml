@@ -1,0 +1,41 @@
+name: Proxy Node Maintenance
+run-name: Proxy maintenance ${{ inputs.phase }} ${{ inputs.request_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      phase:
+        description: 'Scoped maintenance phase'
+        type: choice
+        required: true
+        default: inspect
+        options:
+          - inspect
+      request_id:
+        description: 'Unique request ID; no credentials'
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: proxy-node-maintenance
+  cancel-in-progress: false
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        account: [primary, secondary]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Read-only preflight
+        env:
+          ACCOUNT: ${{ matrix.account }}
+          UNIKRAFT_TOKEN: ${{ matrix.account == 'secondary' && secrets.UNIKRAFT_TOKEN_2 || secrets.UNIKRAFT_TOKEN }}
+        run: python3 scripts/maintenance-inspect.py
