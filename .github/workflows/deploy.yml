@@ -22,6 +22,27 @@ on:
           - sfo - 旧金山 (San Francisco, US)
           - sin - 新加坡 (Singapore)
           - was - 华盛顿 (Washington DC, US)
+      vcpus:
+        description: '新实例 vCPU 数（16 是候选值，须先核实单实例与地区剩余额度）'
+        required: false
+        type: choice
+        default: '1'
+        options:
+          - '1'
+          - '2'
+          - '4'
+          - '8'
+          - '16'
+      memory:
+        description: '新实例内存（不是 Storage；须先核实 RAM 配额）'
+        required: false
+        type: choice
+        default: '512M'
+        options:
+          - '512M'
+          - '1024M'
+          - '2048M'
+          - '4096M'
       argo_domain:
         description: 'Argo 域名（留空 = 用仓库 secret）'
         required: false
@@ -58,6 +79,24 @@ jobs:
           sudo apt-get install -y unikraft-cli
           unikraft version
 
+      - name: Validate requested resources
+        env:
+          VCPUS: ${{ inputs.vcpus || '1' }}
+          MEMORY: ${{ inputs.memory || '512M' }}
+        run: |
+          set -euo pipefail
+          case "$VCPUS" in
+            1|2|4|8|16) ;;
+            *) echo "Unsupported vCPU request" >&2; exit 1 ;;
+          esac
+          case "$MEMORY" in
+            512M|1024M|2048M|4096M) ;;
+            *) echo "Unsupported memory request" >&2; exit 1 ;;
+          esac
+          printf 'Requested new-instance resources: %s vCPU / %s RAM\n' "$VCPUS" "$MEMORY"
+          echo "This workflow creates a NEW instance; it does not resize an existing node."
+          echo "Input validation is not quota validation. Verify platform limits before deploying."
+
       - name: Login to Unikraft Cloud
         env:
           UNIKRAFT_TOKEN: ${{ inputs.account == 'secondary' && secrets.UNIKRAFT_TOKEN_2 || secrets.UNIKRAFT_TOKEN }}
@@ -93,13 +132,16 @@ jobs:
         env:
           METRO: ${{ inputs.metro }}
           ORG: ${{ steps.org.outputs.name }}
+          VCPUS: ${{ inputs.vcpus || '1' }}
+          MEMORY: ${{ inputs.memory || '512M' }}
         run: |
           METRO_CODE="${METRO%% *}"
           RUN_JSON="$(unikraft run \
             --metro "$METRO_CODE" \
             --publish 443:8080/http+tls \
             --publish 8880:8081/tls \
-            -m 512M \
+            --vcpus "$VCPUS" \
+            -m "$MEMORY" \
             --image "${ORG}/unikraft:latest" \
             -o json)"
           echo "$RUN_JSON" > run-output.json
@@ -117,6 +159,8 @@ jobs:
         env:
           UUID: ${{ secrets.UUID }}
           ARGO_DOMAIN: ${{ inputs.argo_domain != '' && inputs.argo_domain || secrets.ARGO_DOMAIN }}
+          VCPUS: ${{ inputs.vcpus || '1' }}
+          MEMORY: ${{ inputs.memory || '512M' }}
         run: |
           chmod +x scripts/generate-subscription.sh scripts/encrypt-subscription.sh
           SUBSCRIPTION="$(./scripts/generate-subscription.sh \
@@ -126,6 +170,7 @@ jobs:
           SUB_URL="$(./scripts/encrypt-subscription.sh "$UUID" "$SUBSCRIPTION")"
           {
             echo "### 部署完成"
+            printf -- '- **请求规格**: %s vCPU / %s RAM\n' "$VCPUS" "$MEMORY"
             echo ""
             echo "- **账号**: \`${{ inputs.account }}\`"
             echo "- **地区**: \`${{ steps.deploy.outputs.metro }}\`"

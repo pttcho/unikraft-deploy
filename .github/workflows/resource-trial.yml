@@ -1,0 +1,45 @@
+name: Singapore Resource Trial
+run-name: Singapore preflight ${{ inputs.request_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: 'Unique request identifier (no credentials)'
+        type: string
+        required: true
+      account:
+        description: 'Singapore trial account (no other account is changed)'
+        type: choice
+        required: true
+        default: primary
+        options:
+          - primary
+      expected_fqdn:
+        description: 'Exact existing Singapore FQDN; do not create a new node'
+        type: string
+        required: true
+        default: aged-mountain-xuanowfg.sin.unikraft.app
+
+permissions:
+  contents: read
+
+concurrency:
+  group: singapore-resource-trial-primary
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Inspect existing node and real quotas (GET only)
+        env:
+          UNIKRAFT_TOKEN: ${{ secrets.UNIKRAFT_TOKEN }}
+          METRO: sin
+          EXPECTED_FQDN: ${{ inputs.expected_fqdn }}
+          TARGET_VCPUS: '16'
+          TARGET_MEMORY_MIB: '4096'
+        run: python3 scripts/inspect-resources.py
