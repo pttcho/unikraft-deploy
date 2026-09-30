@@ -128,12 +128,14 @@ def check_quota(metro, n=None, new=False):
         raise Failure("Target region has insufficient instance/CPU headroom")
 
 
-def wait_state(metro, uid, desired, timeout=120):
+def wait_state(metro, uid, desired, timeout=120, started_after=None):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         n = node(metro, uid)
         if n.get("state") == desired:
             return n
+        if desired == "running" and started_after is not None and n.get("state") == "stopped" and n.get("start_count", 0) > started_after:
+            raise Failure("Boot failed before running: stop_reason=" + str(n.get("stop_reason")) + " stop_code=" + str(n.get("stop_code")))
         time.sleep(2)
     raise Failure("Instance did not reach " + desired)
 
@@ -159,8 +161,9 @@ def start(metro, uid):
         n = wait_state(metro, uid, "stopped")
     if n["state"] != "stopped":
         return wait_state(metro, uid, "running")
+    previous_count = n.get("start_count", 0)
     api(metro, "PUT", "/instances/" + uid + "/start", {"timeout_s": 0})
-    return wait_state(metro, uid, "running")
+    return wait_state(metro, uid, "running", started_after=previous_count)
 
 
 def patch_memory(metro, uid, value):
@@ -236,6 +239,17 @@ def resize(metro):
         raise
 
 
+def migration_image_matches(target, source):
+    expected = os.environ.get("MIGRATION_REBUILT_DIGEST", "")
+    if expected:
+        import re
+        if not re.fullmatch(r"sha256:[0-9a-f]{64}", expected):
+            raise Failure("Rebuilt digest format guard failed")
+        image = target.get("image", "")
+        return image.split("@")[-1] == expected or image == "oci://unikraft.io/qilonglin/unikraft:was-migration-20260930"
+    return target.get("image", "").split("@")[-1] == source.get("image", "").split("@")[-1]
+
+
 def migrate():
     src = original("fra")
     safety(src)
@@ -246,7 +260,7 @@ def migrate():
         raise Failure("Migration name is not unique")
     if existing:
         target = existing[0]
-        if "fra-to-was-20260930" not in (target.get("tags") or []) or target.get("image", "").split("@")[-1] != src.get("image", "").split("@")[-1]:
+        if "fra-to-was-20260930" not in (target.get("tags") or []) or not migration_image_matches(target, src):
             raise Failure("Existing WAS candidate is not this exact migration")
         if target["state"] == "running" and src["state"] == "stopped" and target["memory_mb"] == TARGET_MEMORY:
             emit("MIGRATION_VERIFIED", {"node": public(target, "was"), "old_node": public(src, "fra"), "health": healthy(target, EXPECTED["fra"][2]), "resumed": True})
@@ -285,7 +299,7 @@ def migrate():
         if target["state"] == "running":
             stop("was", target)
         raise Failure("Stopped target resource verification failed")
-    if target.get("image", "").split("@")[-1] != src.get("image", "").split("@")[-1]:
+    if not migration_image_matches(target, src):
         raise Failure("Opaque image digest mismatch; original FRA remains untouched")
     check_quota("was", target)
     emit("ROLLBACK_CHECKPOINT", {"source": public(src, "fra"), "stopped_target": public(target, "was")})

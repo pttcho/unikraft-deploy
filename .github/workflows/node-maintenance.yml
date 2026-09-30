@@ -13,6 +13,7 @@ on:
           - inspect
           - apply
           - repair-diagnostics
+          - rebuild-was
       confirmation:
         description: 'Apply requires FRA-TO-WAS-ALL-4096; inspect leaves empty'
         type: string
@@ -24,6 +25,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: proxy-node-maintenance
@@ -148,3 +150,64 @@ jobs:
           unikraft image --help || true
           unikraft run --help
           python3 scripts/registry-diagnose.py
+
+
+  rebuild-was:
+    if: inputs.phase == 'rebuild-was'
+    needs: inspect
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install official CLI for a new immutable migration image
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y ca-certificates curl python3-yaml
+          sudo install -d -m 0755 /etc/apt/keyrings
+          sudo curl -fsSL --retry 3 -o /etc/apt/keyrings/unikraft-cli.gpg https://pkg.unikraft.com/debian/cli-apt/keys/cli-apt.gpg
+          sudo tee /etc/apt/sources.list.d/unikraft-cli.sources >/dev/null <<EOF
+          Types: deb
+          URIs: https://pkg.unikraft.com/debian/cli-apt/
+          Suites: $(. /etc/os-release && echo "$VERSION_CODENAME")
+          Components: stable
+          Signed-By: /etc/apt/keyrings/unikraft-cli.gpg
+          EOF
+          sudo apt-get update
+          sudo apt-get install -y unikraft-cli
+      - name: Login to the user-owned image namespace
+        env:
+          UNIKRAFT_TOKEN: ${{ secrets.UNIKRAFT_TOKEN_2 }}
+        run: echo "$UNIKRAFT_TOKEN" | unikraft login --token -
+      - name: Recover only the exact FRA deployment input inside CI
+        env:
+          GH_READ_TOKEN: ${{ github.token }}
+        run: python3 scripts/recover-fra-config.py
+      - name: Prepare the same tunnel and build a dedicated WAS image
+        env:
+          UUID: ${{ secrets.UUID }}
+          ARGO_DOMAIN: ${{ env.RECOVERED_FRA_DOMAIN }}
+          ARGO_TOKEN: ${{ env.RECOVERED_FRA_TOKEN }}
+        run: |
+          set -euo pipefail
+          bash scripts/prepare-config.sh "$UUID" "$ARGO_DOMAIN" "$ARGO_TOKEN"
+          unikraft build . --output qilonglin/unikraft:was-migration-20260930
+      - name: Bind only the stopped WAS candidate to the verified image
+        env:
+          ACCOUNT: secondary
+          ACTION: migrate-secondary
+          UNIKRAFT_TOKEN: ${{ secrets.UNIKRAFT_TOKEN_2 }}
+        run: python3 scripts/prepare-was-image.py
+      - name: Cut over with immediate rollback on preboot failure
+        env:
+          ACCOUNT: secondary
+          ACTION: migrate-secondary
+          CONFIRM: ${{ inputs.confirmation }}
+          UNIKRAFT_TOKEN: ${{ secrets.UNIKRAFT_TOKEN_2 }}
+        run: python3 scripts/maintenance-apply.py
+      - name: Verify WAS and DAL actual running resources
+        env:
+          ACCOUNT: secondary
+          ACTION: verify
+          UNIKRAFT_TOKEN: ${{ secrets.UNIKRAFT_TOKEN_2 }}
+        run: python3 scripts/maintenance-apply.py
