@@ -12,6 +12,7 @@ on:
         options:
           - inspect
           - apply
+          - repair-diagnostics
       confirmation:
         description: 'Apply requires FRA-TO-WAS-ALL-4096; inspect leaves empty'
         type: string
@@ -105,3 +106,45 @@ jobs:
           ACTION: verify
           UNIKRAFT_TOKEN: ${{ matrix.account == 'secondary' && secrets.UNIKRAFT_TOKEN_2 || secrets.UNIKRAFT_TOKEN }}
         run: python3 scripts/maintenance-apply.py
+
+
+  repair-diagnostics:
+    if: inputs.phase == 'repair-diagnostics'
+    needs: inspect
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Complete independently authorized DAL 4GiB resize
+        env:
+          ACCOUNT: secondary
+          ACTION: resize-secondary
+          CONFIRM: ${{ inputs.confirmation }}
+          UNIKRAFT_TOKEN: ${{ secrets.UNIKRAFT_TOKEN_2 }}
+        run: python3 scripts/maintenance-apply.py
+      - name: Install official CLI for registry diagnostics
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y ca-certificates curl python3-yaml
+          sudo install -d -m 0755 /etc/apt/keyrings
+          sudo curl -fsSL --retry 3 -o /etc/apt/keyrings/unikraft-cli.gpg https://pkg.unikraft.com/debian/cli-apt/keys/cli-apt.gpg
+          sudo tee /etc/apt/sources.list.d/unikraft-cli.sources >/dev/null <<EOF
+          Types: deb
+          URIs: https://pkg.unikraft.com/debian/cli-apt/
+          Suites: $(. /etc/os-release && echo "$VERSION_CODENAME")
+          Components: stable
+          Signed-By: /etc/apt/keyrings/unikraft-cli.gpg
+          EOF
+          sudo apt-get update
+          sudo apt-get install -y unikraft-cli
+      - name: Login without exposing credentials
+        env:
+          UNIKRAFT_TOKEN: ${{ secrets.UNIKRAFT_TOKEN_2 }}
+        run: echo "$UNIKRAFT_TOKEN" | unikraft login --token -
+      - name: Read supported image commands and profile keys only
+        run: |
+          unikraft images --help || true
+          unikraft image --help || true
+          unikraft run --help
+          python3 scripts/registry-diagnose.py
