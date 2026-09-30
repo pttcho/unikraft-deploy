@@ -21,10 +21,10 @@ on:
         type: string
         default: ''
       url:
-        description: '下载目标'
+        description: '下载目标（需允许 curl 直接下载）'
         required: false
         type: string
-        default: 'https://speed.cloudflare.com/__down?bytes=200000000'
+        default: 'https://cachefly.cachefly.net/100mb.test'
 
 permissions:
   contents: read
@@ -71,7 +71,7 @@ jobs:
           METRO: ${{ matrix.metro }}
           SECONDS: ${{ inputs.seconds || '30' }}
           PARALLEL: ${{ inputs.parallel || '4' }}
-          URL: ${{ inputs.url || 'https://speed.cloudflare.com/__down?bytes=200000000' }}
+          URL: ${{ inputs.url || 'https://cachefly.cachefly.net/100mb.test' }}
           UNIKRAFT_TOKEN: ${{ matrix.account == 'secondary' && secrets.UNIKRAFT_TOKEN_2 || secrets.UNIKRAFT_TOKEN }}
           UUID: ${{ secrets.UUID }}
         run: python3 scripts/throughput-probe.py

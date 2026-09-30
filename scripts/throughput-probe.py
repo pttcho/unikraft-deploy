@@ -44,7 +44,7 @@ UUID = os.environ.get("UUID", "").strip()
 SECONDS = float(os.environ.get("SECONDS", "30"))
 SAMPLE_S = float(os.environ.get("SAMPLE_S", "2"))
 PARALLEL = int(os.environ.get("PARALLEL", "4"))
-URL = os.environ.get("URL", "https://speed.cloudflare.com/__down?bytes=200000000")
+URL = os.environ.get("URL", "https://cachefly.cachefly.net/100mb.test")
 XRAY_BIN = os.environ.get("XRAY_BIN", "/tmp/xray/xray")
 PORT = 18081
 METROS = ("sin", "sfo", "fra", "dal", "was")
@@ -103,7 +103,8 @@ def wait_port(timeout=15):
 
 def load_worker(results, index):
     out = subprocess.run(
-        ["curl", "-s", "-o", "/dev/null", "-m", str(int(SECONDS) + 2),
+        ["curl", "-s", "-o", "/dev/null", "-A", "Mozilla/5.0 (compatible; ThroughputProbe/1.0)",
+         "-m", str(int(SECONDS) + 2),
          "--socks5-hostname", "127.0.0.1:%d" % PORT,
          "-w", "%{speed_download} %{size_download} %{http_code}", URL],
         capture_output=True, text=True)
@@ -175,6 +176,11 @@ def main():
 
         for t in threads:
             t.join(timeout=SECONDS + 15)
+        total_bytes = sum(v[1] for v in results.values())
+        if total_bytes <= 0:
+            codes = sorted({v[2] for v in results.values()})
+            raise Failure("load generation downloaded nothing (http " + ",".join(codes) +
+                          "); pick another URL with the url input")
         final = metrics(uid)
 
         rates = [s["tx_mbps"] for s in series if "tx_mbps" in s]
