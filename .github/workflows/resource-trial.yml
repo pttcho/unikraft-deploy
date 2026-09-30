@@ -4,6 +4,14 @@ run-name: Singapore preflight ${{ inputs.request_id }}
 on:
   workflow_dispatch:
     inputs:
+      operation:
+        description: 'Read-only quota or timed metrics sampling'
+        type: choice
+        required: false
+        default: quota
+        options:
+          - quota
+          - metrics
       request_id:
         description: 'Unique request identifier (no credentials)'
         type: string
@@ -39,6 +47,8 @@ jobs:
         env:
           UNIKRAFT_TOKEN: ${{ secrets.UNIKRAFT_TOKEN }}
           METRO: sin
+          OPERATION: ${{ inputs.operation || 'quota' }}
+          METRICS_DURATION_SECONDS: '240'
           EXPECTED_FQDN: ${{ inputs.expected_fqdn }}
           TARGET_VCPUS: '16'
           TARGET_MEMORY_MIB: '4096'

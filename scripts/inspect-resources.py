@@ -3,6 +3,8 @@
 import json
 import os
 import re
+import time
+import datetime
 import sys
 import urllib.error
 import urllib.request
@@ -78,6 +80,18 @@ for instance in rows:
 if len(matched) != 1:
     raise SystemExit("Target guard: expected FQDN did not identify exactly one instance. No instance was modified.")
 node = matched[0]
+quota_rows = quotas.get("quotas", [])
+if len(quota_rows) != 1:
+    raise SystemExit("Quota guard: exactly one current-user quota record is required.")
+q = quota_rows[0]
+limits = q.get("limits", {})
+max_cpu = limits.get("max_vcpus")
+max_memory = limits.get("max_memory_mb")
+blocked = []
+if not isinstance(max_cpu, int) or TARGET_CPU > max_cpu:
+    blocked.append("Requested CPU exceeds confirmed single-instance limit")
+if not isinstance(max_memory, int) or TARGET_MEMORY > max_memory:
+    blocked.append("Requested RAM exceeds confirmed single-instance limit")
 report = {
     "mode": "read-only",
     "metro": METRO,
@@ -85,8 +99,40 @@ report = {
     "current": {"state": node.get("state"), "vcpus": node.get("vcpus"), "memory_mib": node.get("memory_mb")},
     "requested": {"vcpus": TARGET_CPU, "memory_mib": TARGET_MEMORY},
     "quota_data": quota_summary(quotas),
+    "single_instance_limits": {"vcpus": max_cpu, "memory_mib": max_memory},
+    "requested_spec_supported": not blocked,
+    "blocked_by": blocked,
     "instance_modified": False,
 }
 print("RESOURCE_PREFLIGHT_BEGIN")
 print(json.dumps(report, ensure_ascii=False, indent=2))
 print("RESOURCE_PREFLIGHT_END")
+
+
+if os.environ.get("OPERATION", "quota") == "metrics":
+    duration = min(240, max(10, int(os.environ.get("METRICS_DURATION_SECONDS", "240"))))
+    interval = 5
+    end = time.monotonic() + duration
+    def flat_numbers(value, prefix=""):
+        result = {}
+        if isinstance(value, dict):
+            for k, v in value.items():
+                result.update(flat_numbers(v, prefix + str(k) + "."))
+        elif isinstance(value, list):
+            for i, v in enumerate(value):
+                result.update(flat_numbers(v, prefix + str(i) + "."))
+        elif isinstance(value, (int, float)) and not isinstance(value, bool):
+            key = prefix.rstrip(".")
+            if re.search(r"cpu|rss|memory|rx|tx|bytes|drop|packet|tcp", key, re.I):
+                result[key] = value
+        return result
+    print("METRICS_START", datetime.datetime.now(datetime.timezone.utc).isoformat(), flush=True)
+    while time.monotonic() < end:
+        try:
+            data = get("/instances/" + node["uuid"] + "/metrics")
+            sample = {"utc": datetime.datetime.now(datetime.timezone.utc).isoformat(), "values": flat_numbers(data)}
+            print("METRIC_SAMPLE " + json.dumps(sample), flush=True)
+        except SystemExit:
+            print("METRIC_SAMPLE_ERROR transient-read-failure", flush=True)
+        time.sleep(interval)
+    print("METRICS_DONE", datetime.datetime.now(datetime.timezone.utc).isoformat(), flush=True)
