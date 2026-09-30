@@ -1,0 +1,72 @@
+name: Tunnel Availability
+
+# 手动诊断：反复探测每个节点的 Argo 入口可达性和数据通路（不压测）。
+# 入口看 CF 是否还能服务该域名；隧道看能不能真的走出去到预期出口 IP。
+# 在干净机房线路上跑，结果反映隧道与源站，而不是本地线路或 GFW。
+on:
+  workflow_dispatch:
+    inputs:
+      rounds:
+        description: '每个节点探测多少轮'
+        required: false
+        type: string
+        default: '20'
+      interval_s:
+        description: '每轮间隔秒数'
+        required: false
+        type: string
+        default: '3'
+      metros:
+        description: '只测某些节点（逗号分隔：sfo,sin,dal,was；留空=全部）'
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: proxy-tunnel-availability
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - account: primary
+            metro: sfo
+          - account: primary
+            metro: sin
+          - account: secondary
+            metro: dal
+          - account: secondary
+            metro: was
+    name: availability ${{ matrix.metro }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install xray client
+        if: inputs.metros == '' || contains(format(',{0},', inputs.metros), format(',{0},', matrix.metro))
+        run: |
+          set -euo pipefail
+          curl -sSL --retry 3 -o /tmp/xray.zip \
+            https://github.com/XTLS/Xray-core/releases/latest/download/Xray-linux-64.zip
+          mkdir -p /tmp/xray
+          unzip -oq /tmp/xray.zip -d /tmp/xray
+          chmod +x /tmp/xray/xray
+          /tmp/xray/xray version | head -1
+
+      - name: Probe entrance and tunnel repeatedly for ${{ matrix.metro }}
+        if: inputs.metros == '' || contains(format(',{0},', inputs.metros), format(',{0},', matrix.metro))
+        env:
+          ACCOUNT: ${{ matrix.account }}
+          METRO: ${{ matrix.metro }}
+          ROUNDS: ${{ inputs.rounds || '20' }}
+          INTERVAL_S: ${{ inputs.interval_s || '3' }}
+          UUID: ${{ secrets.UUID }}
+        run: python3 scripts/tunnel-availability.py
