@@ -13,7 +13,7 @@ import zipfile
 
 REPO = "pttcho/unikraft-deploy"
 EXPECTED_FQDN = "little-snowflake-y84r85js.fra.unikraft.app"
-EXPECTED_DOMAIN = "zheshi111.gkg.ccwu.cc"
+EXPECTED_DOMAIN = "zheshi111.mkvskg.dpdns.org"
 GHTOKEN = os.environ.get("GH_READ_TOKEN", "")
 if not GHTOKEN:
     raise SystemExit("Read-only repository authentication missing.")

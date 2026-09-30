@@ -98,7 +98,7 @@
 
 ## 2026-09-30 部署变更
 
-正式四节点为 SFO / SIN / DAL / WAS，均为 1 vCPU / 4096 MiB。原 FRA 已按明确授权精确删除。WAS 保留 Argo 域名 `zheshi111.gkg.ccwu.cc`，直连为 `crimson-breeze-k85idd62.was.unikraft.app`，已验证代理出口 `209.50.250.193`。
+正式四节点为 SFO / SIN / DAL / WAS，均为 1 vCPU / 4096 MiB。原 FRA 已按明确授权精确删除。WAS 保留 Argo 域名 `zheshi111.mkvskg.dpdns.org`，直连为 `crimson-breeze-k85idd62.was.unikraft.app`，已验证代理出口 `209.50.250.193`。
 
 WAS 采用独立镜像标签 `qilonglin/unikraft:was-migration-20260930`，不要再把四个地区含不同隧道配置的镜像都覆盖到同一个 `latest` 标签后依赖旧摘要跨区拉取。迁移和历史修复入口属于一次性运维；当前 `node-maintenance.yml` 的 `inspect` 可只读核实正式四节点。
 

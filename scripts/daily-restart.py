@@ -24,8 +24,8 @@ EXPECTED = {
         "sin": ("7c310f4f-5b0b-4cd0-9ba8-a72158974ddd", "aged-mountain-xuanowfg.sin.unikraft.app", "sugasuga.xxfxx.kdns.fr"),
     },
     "secondary": {
-        "dal": ("8515c385-5c93-4281-946e-52e5d6ad2542", "morning-cloud-gfw0gjvx.dal.unikraft.app", "zheshi2.gkg.ccwu.cc"),
-        "was": ("576733ad-701c-4b15-b8b7-0e213de656d4", "crimson-breeze-k85idd62.was.unikraft.app", "zheshi111.gkg.ccwu.cc"),
+        "dal": ("8515c385-5c93-4281-946e-52e5d6ad2542", "morning-cloud-gfw0gjvx.dal.unikraft.app", "zheshi222.mkvskg.dpdns.org"),
+        "was": ("576733ad-701c-4b15-b8b7-0e213de656d4", "crimson-breeze-k85idd62.was.unikraft.app", "zheshi111.mkvskg.dpdns.org"),
     },
 }
 
