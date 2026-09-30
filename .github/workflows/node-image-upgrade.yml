@@ -1,20 +1,34 @@
 name: Node Image Upgrade
 
-# 换镜像前的只读前置检查：确认每个节点的隧道 token 能从它自己的部署运行日志里恢复。
-# 换镜像必须把每个节点自己的 tunnel token 烧进新镜像（四个节点四条隧道），
-# 这一步只读、只报告能否恢复，绝不打印 token 值。phase=apply 尚未启用。
+# 把加固后的镜像原地换到四个节点上（ha_connections=8、edge_ip_version=4、entry.sh 守护、
+# sing-box 1.14.2）。配置是构建时打进镜像的，所以必须逐节点重建：
+# 每个节点有自己的隧道 token，镜像里的 cloudflared inbound 用的是它。
+#
+# check = 只读，确认各节点 token 能否从部署日志恢复
+# apply = 重建镜像 → 停机 → PATCH image → 启动 → 验证 → 失败自动回滚
 on:
   workflow_dispatch:
     inputs:
       phase:
-        description: '目前只支持 check（只读）'
+        description: 'check = 只读检查；apply = 执行换镜像'
         required: true
         type: choice
         default: check
         options:
           - check
+          - apply
       node:
-        description: '只检查某个节点（sfo/sin/dal/was；留空=全部）'
+        description: '只处理某个节点（sfo/sin/dal/was；留空=全部）'
+        required: false
+        type: string
+        default: ''
+      image_tag:
+        description: '新镜像标签前缀（每个节点会追加自己的名字）'
+        required: false
+        type: string
+        default: 'tunnel-ipv4-20260930'
+      confirmation:
+        description: 'apply 必须填 SWAP-NODE-IMAGE'
         required: false
         type: string
         default: ''
@@ -29,6 +43,7 @@ concurrency:
 
 jobs:
   check:
+    if: inputs.phase == 'check'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -41,7 +56,7 @@ jobs:
             match_fqdn: aged-mountain-xuanowfg.sin.unikraft.app
           - node: dal
             match_fqdn: morning-cloud-gfw0gjvx.dal.unikraft.app
-          # WAS 的隧道来自原 FRA，所以 token 只能从 FRA 那次部署的日志里找。
+          # WAS 的隧道来自原 FRA，token 只能从 FRA 那次部署的日志里找。
           - node: was
             match_fqdn: little-snowflake-y84r85js.fra.unikraft.app
     name: token check ${{ matrix.node }}
@@ -58,3 +73,125 @@ jobs:
           REPO: ${{ github.repository }}
           GH_READ_TOKEN: ${{ github.token }}
         run: python3 scripts/recover-node-token.py || true
+
+  apply:
+    if: inputs.phase == 'apply'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - node: sfo
+            account: primary
+            metro: sfo
+            argo_domain: godlike2.xxfxx.kdns.fr
+            match_fqdn: wispy-frost-5xvajfi9.sfo.unikraft.app
+          - node: sin
+            account: primary
+            metro: sin
+            argo_domain: sugasuga.xxfxx.kdns.fr
+            match_fqdn: aged-mountain-xuanowfg.sin.unikraft.app
+          - node: dal
+            account: secondary
+            metro: dal
+            argo_domain: zheshi222.mkvskg.dpdns.org
+            match_fqdn: morning-cloud-gfw0gjvx.dal.unikraft.app
+          - node: was
+            account: secondary
+            metro: was
+            argo_domain: zheshi111.mkvskg.dpdns.org
+            match_fqdn: little-snowflake-y84r85js.fra.unikraft.app
+    name: upgrade ${{ matrix.node }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Recover this node's tunnel token from its own deploy log
+        if: matrix.node != 'sin' && (inputs.node == '' || inputs.node == matrix.node)
+        env:
+          PHASE: apply
+          NODE: ${{ matrix.node }}
+          MATCH_FQDN: ${{ matrix.match_fqdn }}
+          REPO: ${{ github.repository }}
+          GH_READ_TOKEN: ${{ github.token }}
+        run: python3 scripts/recover-node-token.py
+
+      - name: Take the Singapore tunnel token from the repository secret
+        if: matrix.node == 'sin' && (inputs.node == '' || inputs.node == matrix.node)
+        env:
+          SIN_ARGO_TOKEN: ${{ secrets.SIN_ARGO_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SIN_ARGO_TOKEN:-}" ]; then
+            echo "SIN_ARGO_TOKEN secret is missing" >&2
+            exit 1
+          fi
+          echo "::add-mask::$SIN_ARGO_TOKEN"
+          echo "RECOVERED_NODE_TOKEN=$SIN_ARGO_TOKEN" >> "$GITHUB_ENV"
+
+      - name: Install Unikraft CLI
+        if: inputs.node == '' || inputs.node == matrix.node
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y ca-certificates curl
+          sudo install -d -m 0755 /etc/apt/keyrings
+          sudo curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 \
+            -o /etc/apt/keyrings/unikraft-cli.gpg \
+            https://pkg.unikraft.com/debian/cli-apt/keys/cli-apt.gpg
+          sudo tee /etc/apt/sources.list.d/unikraft-cli.sources >/dev/null <<EOF
+          Types: deb
+          URIs: https://pkg.unikraft.com/debian/cli-apt/
+          Suites: $(. /etc/os-release && echo "$VERSION_CODENAME")
+          Components: stable
+          Signed-By: /etc/apt/keyrings/unikraft-cli.gpg
+          EOF
+          sudo apt-get update
+          sudo apt-get install -y unikraft-cli
+          unikraft version
+
+      - name: Login to Unikraft Cloud
+        if: inputs.node == '' || inputs.node == matrix.node
+        env:
+          UNIKRAFT_TOKEN: ${{ matrix.account == 'secondary' && secrets.UNIKRAFT_TOKEN_2 || secrets.UNIKRAFT_TOKEN }}
+        run: echo "$UNIKRAFT_TOKEN" | unikraft login --token -
+
+      - name: Resolve organization name
+        if: inputs.node == '' || inputs.node == matrix.node
+        id: org
+        run: |
+          set -euo pipefail
+          chmod +x scripts/get-org-name.sh
+          ORG="$(./scripts/get-org-name.sh)"
+          echo "name=${ORG}" >> "$GITHUB_OUTPUT"
+          echo "Using organization: ${ORG}"
+
+      - name: Build the hardened image for ${{ matrix.node }}
+        if: inputs.node == '' || inputs.node == matrix.node
+        env:
+          UUID: ${{ secrets.UUID }}
+          ARGO_DOMAIN: ${{ matrix.argo_domain }}
+          ARGO_TOKEN: ${{ env.RECOVERED_NODE_TOKEN }}
+          ORG: ${{ steps.org.outputs.name }}
+          TAG: ${{ inputs.image_tag || 'tunnel-ipv4-20260930' }}
+        run: |
+          set -euo pipefail
+          if [ -z "${ARGO_TOKEN:-}" ]; then
+            echo "Missing tunnel token for ${{ matrix.node }}; refusing to build." >&2
+            exit 1
+          fi
+          bash scripts/prepare-config.sh "$UUID" "$ARGO_DOMAIN" "$ARGO_TOKEN"
+          unikraft build . --output "${ORG}/unikraft:${TAG}-${{ matrix.node }}"
+
+      - name: Swap the image in place, verify, roll back on failure
+        if: inputs.node == '' || inputs.node == matrix.node
+        env:
+          ACCOUNT: ${{ matrix.account }}
+          METRO: ${{ matrix.metro }}
+          CONFIRM: ${{ inputs.confirmation }}
+          ORG: ${{ steps.org.outputs.name }}
+          TAG: ${{ inputs.image_tag || 'tunnel-ipv4-20260930' }}
+          NEW_IMAGE: ${{ steps.org.outputs.name }}/unikraft:${{ inputs.image_tag || 'tunnel-ipv4-20260930' }}-${{ matrix.node }}
+          UNIKRAFT_TOKEN: ${{ matrix.account == 'secondary' && secrets.UNIKRAFT_TOKEN_2 || secrets.UNIKRAFT_TOKEN }}
+        run: python3 scripts/upgrade-node-image.py
