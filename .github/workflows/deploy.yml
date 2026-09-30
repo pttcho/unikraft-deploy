@@ -47,10 +47,10 @@ on:
         description: 'Argo 域名（留空 = 用仓库 secret）'
         required: false
         type: string
-      argo_token:
-        description: 'Argo 隧道 Token（留空 = 用仓库 secret）'
-        required: false
-        type: string
+      # NOTE: 不要为 Argo 隧道 Token 增加 workflow_dispatch 输入。
+      # GitHub 会打印每个步骤的 env: 块；secret 派生的值会自动掩码（***），
+      # 而 dispatch 输入不会，会把 token 明文留在公开的运行日志里。
+      # 隧道 token 只应通过仓库 secret ARGO_TOKEN 提供。
 
 jobs:
   deploy:
@@ -114,7 +114,7 @@ jobs:
         env:
           UUID: ${{ secrets.UUID }}
           ARGO_DOMAIN: ${{ inputs.argo_domain != '' && inputs.argo_domain || secrets.ARGO_DOMAIN }}
-          ARGO_TOKEN: ${{ inputs.argo_token != '' && inputs.argo_token || secrets.ARGO_TOKEN }}
+          ARGO_TOKEN: ${{ secrets.ARGO_TOKEN }}
         run: |
           if [[ -z "$UUID" ]]; then
             echo "Secret UUID is required." >&2

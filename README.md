@@ -40,7 +40,11 @@
 | `UNIKRAFT_TOKEN` | 是 | Unikraft API Token |
 | `UUID` | 是 | VLESS UUID，兼作解密密钥 |
 | `ARGO_DOMAIN` | 否 | Cloudflare Tunnel 域名 |
-| `ARGO_TOKEN` | 否 | Cloudflare Tunnel Token |
+| `ARGO_TOKEN` | 否 | Cloudflare Tunnel Token（新建实例时用） |
+| `ARGO_TOKEN_SFO` `ARGO_TOKEN_SIN` `ARGO_TOKEN_DAL` `ARGO_TOKEN_WAS` | 否 | 各节点自己的 Tunnel Token；**Node Image Upgrade** 按节点从这里取（轮换 token 时必填） |
+
+> 隧道 token 是构建时打进镜像的，所以**轮换 token 必须逐节点重建镜像**（Actions → Node Image Upgrade → `phase=apply`）。
+> 不要再把 token 做成 `workflow_dispatch` 输入，也不要从运行日志里恢复——两者都会把 token 明文暴露在公开仓库里。
 
 ## 部署步骤
 
@@ -73,6 +77,7 @@
 ## 注意事项
 
 - `UUID`、`UNIKRAFT_TOKEN`、`ARGO_TOKEN` 属于敏感信息，只放在 GitHub Secrets，不要写入代码提交
+- 不要为 `ARGO_TOKEN` 增加 `workflow_dispatch` 输入：GitHub 会打印每步的 `env:` 块，secret 派生的值会自动掩码为 `***`，而 dispatch 输入不会，会把隧道 token 明文留在运行日志里（公开仓库可被任何人读取）。
 - 每次部署会构建镜像 `<org>/unikraft:latest` 并启动新实例
 - 如需清理旧实例，可以使用 **Actions → Delete Unikraft Instance** 删除
 
