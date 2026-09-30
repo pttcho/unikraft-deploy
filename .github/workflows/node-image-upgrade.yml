@@ -13,6 +13,11 @@ on:
         default: check
         options:
           - check
+      node:
+        description: '只检查某个节点（sfo/sin/dal/was；留空=全部）'
+        required: false
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -25,7 +30,7 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -45,6 +50,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Check whether this node's tunnel token is recoverable (read-only)
+        if: inputs.node == '' || inputs.node == matrix.node
         env:
           PHASE: check
           NODE: ${{ matrix.node }}

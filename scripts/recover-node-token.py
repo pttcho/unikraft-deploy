@@ -64,11 +64,24 @@ def valid_token(candidate):
     return all(decoded.get(k) for k in ("a", "t", "s"))
 
 
-listing = json.loads(github("/actions/workflows/deploy.yml/runs"
-                            "?status=success&event=workflow_dispatch&per_page=100"))
-for run in listing.get("workflow_runs", []):
-    if run.get("head_branch") != "main":
+def runs(path):
+    try:
+        return json.loads(github(path)).get("workflow_runs", [])
+    except (SystemExit, urllib.error.URLError, TimeoutError):
+        return []
+
+
+# deploy.yml first, then every other workflow, in case the node was created by
+# an earlier or renamed workflow whose log is the only surviving copy.
+candidates = runs("/actions/workflows/deploy.yml/runs?status=success&event=workflow_dispatch&per_page=100")
+candidates += runs("/actions/runs?per_page=100")
+
+seen_ids = set()
+fqdn_seen_but_masked = False
+for run in candidates:
+    if run.get("id") in seen_ids or run.get("head_branch") != "main":
         continue
+    seen_ids.add(run["id"])
     try:
         zipped = github("/actions/runs/" + str(run["id"]) + "/logs")
         with zipfile.ZipFile(io.BytesIO(zipped)) as archive:
@@ -79,17 +92,21 @@ for run in listing.get("workflow_runs", []):
     if MATCH_FQDN not in log:
         continue
     token = next((c for c in re.findall(r"\bARGO_TOKEN:\s*([^\s]+)", log) if valid_token(c)), None)
-    if token:
-        if PHASE == "apply":
-            print("::add-mask::" + token, flush=True)
-            with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env:
-                env.write("RECOVERED_NODE_TOKEN=" + token + "\n")
-        print("TOKEN_RECOVERY " + json.dumps({"node": NODE, "matched_fqdn": MATCH_FQDN,
-            "source_run": run["id"], "found": True, "phase": PHASE,
-            "credential_value_logged": False}), flush=True)
-        raise SystemExit(0)
+    if not token:
+        fqdn_seen_but_masked = True
+        continue
+    if PHASE == "apply":
+        print("::add-mask::" + token, flush=True)
+        with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env:
+            env.write("RECOVERED_NODE_TOKEN=" + token + "\n")
+    print("TOKEN_RECOVERY " + json.dumps({"node": NODE, "matched_fqdn": MATCH_FQDN,
+        "source_run": run["id"], "workflow": run.get("name"), "found": True, "phase": PHASE,
+        "credential_value_logged": False}), flush=True)
+    raise SystemExit(0)
 
+reason = ("the deploying run exists but its token was masked or unreadable"
+          if fqdn_seen_but_masked else
+          "no run log in the scanned window contained this FQDN")
 print("TOKEN_RECOVERY " + json.dumps({"node": NODE, "matched_fqdn": MATCH_FQDN,
-    "found": False, "phase": PHASE,
-    "reason": "no successful deploy run log contained this FQDN with a readable token"}), flush=True)
+    "found": False, "phase": PHASE, "scanned_runs": len(seen_ids), "reason": reason}), flush=True)
 raise SystemExit(1 if PHASE == "apply" else 0)
