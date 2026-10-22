@@ -92,11 +92,11 @@ jobs:
           - node: sfo
             account: primary
             metro: sfo
-            argo_domain: godlike2.xxfxx.kdns.fr
+            argo_domain: godlike2.gki.ccwu.cc
           - node: sin
             account: primary
             metro: sin
-            argo_domain: sugasuga.xxfxx.kdns.fr
+            argo_domain: sugasuga.gki.ccwu.cc
           - node: dal
             account: secondary
             metro: dal
