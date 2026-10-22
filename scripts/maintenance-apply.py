@@ -12,8 +12,8 @@ import urllib.error
 import urllib.request
 
 EXPECTED = {
-    "sin": ("7c310f4f-5b0b-4cd0-9ba8-a72158974ddd", "aged-mountain-xuanowfg.sin.unikraft.app", "sugasuga.xxfxx.kdns.fr"),
-    "sfo": ("a7c91ccc-ef4a-44de-941c-177bed5c81b8", "wispy-frost-5xvajfi9.sfo.unikraft.app", "godlike2.xxfxx.kdns.fr"),
+    "sin": ("7c310f4f-5b0b-4cd0-9ba8-a72158974ddd", "aged-mountain-xuanowfg.sin.unikraft.app", "sugasuga.gki.ccwu.cc"),
+    "sfo": ("a7c91ccc-ef4a-44de-941c-177bed5c81b8", "wispy-frost-5xvajfi9.sfo.unikraft.app", "godlike2.gki.ccwu.cc"),
     "fra": ("f36e5308-ac40-4c16-8f7e-13416059df21", "little-snowflake-y84r85js.fra.unikraft.app", "zheshi111.mkvskg.dpdns.org"),
     "dal": ("8515c385-5c93-4281-946e-52e5d6ad2542", "morning-cloud-gfw0gjvx.dal.unikraft.app", "zheshi222.mkvskg.dpdns.org"),
 }

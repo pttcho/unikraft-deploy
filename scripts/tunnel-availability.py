@@ -20,8 +20,8 @@ import time
 
 EXPECTED = {
     "primary": {
-        "sfo": ("a7c91ccc-ef4a-44de-941c-177bed5c81b8", "godlike2.xxfxx.kdns.fr", "23.81.176.109"),
-        "sin": ("7c310f4f-5b0b-4cd0-9ba8-a72158974ddd", "sugasuga.xxfxx.kdns.fr", "173.234.10.239"),
+        "sfo": ("a7c91ccc-ef4a-44de-941c-177bed5c81b8", "godlike2.gki.ccwu.cc", "23.81.176.109"),
+        "sin": ("7c310f4f-5b0b-4cd0-9ba8-a72158974ddd", "sugasuga.gki.ccwu.cc", "173.234.10.239"),
     },
     "secondary": {
         "dal": ("8515c385-5c93-4281-946e-52e5d6ad2542", "zheshi222.mkvskg.dpdns.org", "172.241.224.90"),
